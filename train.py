@@ -5,19 +5,12 @@ import codecs
 import pickle
 import os.path
 from pythainlp.tokenize import word_tokenize
-from time import sleep
+from prettytable import PrettyTable
+
 
 # tknzr = nltk.tokenize.TweetTokenizer()
 
 word_features = []
-
-
-# def get_words_in_reviews(trainingDataSet):
-#     all_words = []
-#     for (words, sentiment) in trainingDataSet:
-#         all_words.extend(words)
-#     return all_words
-
 
 def build_vocabulary(training_data_set):
     all_words = []
@@ -29,23 +22,7 @@ def build_vocabulary(training_data_set):
     # print("word_features most_common", word_features)
     # print("")
     # print("word_features keys", word_features)
-    return word_list.keys()
-
-
-# { 'contains(word)': True/False }, ...
-# def get_contains_features(document: list):
-#     document_words = set(document)
-#     features = {}
-#     contains_features = []
-#     for word in word_features:
-#         if word in document_words:
-#             features[f"contains({word})"] = True
-#             contains_features.append(word)
-#         else:
-#             features[f"contains({word})"] = False
-
-#     return (features, contains_features)
-
+    return [word[0] for word in word_list.most_common()]  # word_list.keys()
 
 def extract_features(document: list):  # { 'contains(word)': True/False }, ...
     document_words = set(document)
@@ -54,16 +31,6 @@ def extract_features(document: list):  # { 'contains(word)': True/False }, ...
         features[f"contains({word})"] = (word in document_words)
     # print("\nfeature", features)
     return features
-
-
-# def find_entity(document: list):
-#     document_words = set(document)
-#     contains_list = []
-#     for word in word_features:
-#         if word in document_words:
-#             contains_list.append(word)
-#     return contains_list
-
 
 def read_corpus(filename, tag):
     _read = codecs.open(filename, 'r', "utf-8")
@@ -83,11 +50,11 @@ def prepare_data():  # [('word', 'sentiment'), ...]
     _dir = "simple"  # test simple old
     pos_reviews = read_corpus(f'corpus/{_dir}/pos.txt', 'pos')
     neg_reviews = read_corpus(f'corpus/{_dir}/neg.txt', 'neg')
-    neu_reviews = read_corpus(f'corpus/{_dir}/neu.txt', 'neu')
+    swear_reviews = read_corpus(f'corpus/{_dir}/swear.txt', 'swear')
     # q_reviews = read_corpus(f'corpus/{dir}/q.txt', 'q')
 
     training_data_set = []
-    for (review, sentiment) in neg_reviews + neu_reviews + pos_reviews:
+    for (review, sentiment) in swear_reviews + neg_reviews + pos_reviews:
         reviews_filtered = [w.lower() for w in word_tokenize(review)]
         training_data_set.append((reviews_filtered, sentiment))
 
@@ -126,17 +93,32 @@ if __name__ == "__main__":
     # print("saved classifier")
     read_in = input('Enter >>> ')
     while read_in != 'q':
-        tokenized = word_tokenize(read_in)
+        tokenized = word_tokenize(read_in, keep_whitespace=False)
         extracted_features = extract_features(tokenized)
-        entities = [k for k, v in extracted_features.items() if v == True]
-        print("Entities:", entities)
+        result = classifier.classify(extracted_features)
+        entities = [k[9:-1] for k, v in extracted_features.items() if v == True]
+        print("Tokenized:", "|".join(tokenized))
+        print("Entities:", "|".join(entities))
+        print("")
         # print("Extracted features:", extracted_features)
         if len(entities) > 0:
             dist = classifier.prob_classify(extracted_features)
-            for label in dist.samples():
-                print("%s: %f" % (label, dist.prob(label)))
-            print(classifier.classify(extracted_features))
+            # print(dist.samples())
+            # for label in dist.samples():
+                # print("%s: %f" % (label, dist.prob(label)))
+
+            # samples = dist.samples()
+
+            t = PrettyTable(['Sentiment', 'Probability'])
+            t.add_row([f'{"*pos*" if result == "pos" else "pos"}', f"{dist.prob('pos'):4f}"])
+            t.add_row([f'{"*swear*" if result == "swear" else "swear"}',
+                       f"{dist.prob('swear'):4f}"])
+            t.add_row([f'{"*neg*" if result == "neg" else "neg"}',
+                       f"{dist.prob('neg'):4f}"])
+            print(t)
+            print("")
         else:
             print("No match")
+            print("")
 
         read_in = input('Enter >>> ')
